@@ -31,6 +31,8 @@
     try { parent.postMessage(JSON.stringify(m), '*'); } catch (e) { /* ignore */ }
   }
 
+  send({ ev: 'hello' }); // avisa o app que esta é a página certa (e não uma página de erro)
+
   window.onYouTubeIframeAPIReady = function () {
     player = new YT.Player('p', {
       videoId: id,
