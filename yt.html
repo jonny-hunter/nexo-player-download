@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Trailer</title>
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+  #p { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<div id="p"></div>
+<script>
+/* Ponte do trailer. O YouTube recusa vídeo embutido em páginas sem endereço de origem (erro 153).
+   No Android o app abre esta página por um endereço https interno (https://appassets.androidplatform.net/...);
+   nas TVs LG/Samsung, no PC e na web ela vem do GitHub Pages (jonny-hunter.github.io/nexo-player-download).
+   Ela conversa com o app por postMessage. */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var id = q.get('v');
+  var bg = q.get('bg') === '1';
+  var start = Number(q.get('start')) || 0;
+  var muted = q.get('mute') !== '0';
+  var player = null;
+  var timer = null;
+
+  function send(m) {
+    m.nexoYt = 1;
+    try { parent.postMessage(JSON.stringify(m), '*'); } catch (e) { /* ignore */ }
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player('p', {
+      videoId: id,
+      width: '100%',
+      height: '100%',
+      playerVars: {
+        autoplay: 1, mute: muted ? 1 : 0, controls: bg ? 0 : 1, playsinline: 1, rel: 0,
+        modestbranding: 1, iv_load_policy: 3, disablekb: bg ? 1 : 0, fs: bg ? 0 : 1,
+        start: start, cc_load_policy: 0, hl: 'pt-BR', origin: location.origin,
+      },
+      events: {
+        onReady: function (e) {
+          if (muted) e.target.mute(); else e.target.unMute();
+          e.target.playVideo();
+          send({ ev: 'ready' });
+        },
+        onStateChange: function (e) { send({ ev: 'state', s: e.data }); },
+        onError: function (e) { send({ ev: 'error', code: e.data }); },
+      },
+    });
+    timer = setInterval(function () {
+      if (player && player.getCurrentTime) send({ ev: 'time', t: player.getCurrentTime() || 0, d: player.getDuration() || 0 });
+    }, 1000);
+  };
+
+  window.addEventListener('message', function (e) {
+    var m;
+    try { m = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+    if (!m || !m.nexoCmd || !player || !player.playVideo) return;
+    switch (m.nexoCmd) {
+      case 'play': player.playVideo(); break;
+      case 'pause': player.pauseVideo(); break;
+      case 'toggle': if (player.getPlayerState() === 1) player.pauseVideo(); else player.playVideo(); break;
+      case 'mute': player.mute(); break;
+      case 'unmute': player.unMute(); player.setVolume(100); break;
+      case 'seekBy': player.seekTo(Math.max(0, (player.getCurrentTime() || 0) + (m.n || 0)), true); break;
+      case 'stop': clearInterval(timer); player.stopVideo(); break;
+    }
+  });
+
+  var s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = function () { send({ ev: 'error', code: 'net' }); };
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>
