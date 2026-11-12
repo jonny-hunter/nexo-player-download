@@ -25,6 +25,26 @@
   var muted = q.get('mute') !== '0';
   var ctl = bg ? 0 : (q.get('ctl') === '0' ? 0 : 1);
   var cc = !bg && q.get('cc') === '1';
+  var tv = q.get('tv') === '1';
+  var ccDone = false;
+
+  // Legenda em português: usa a faixa em português se existir; senão pede a tradução automática do YouTube.
+  // (Comando não documentado do YouTube: se um dia parar de funcionar, o trailer só fica sem legenda.)
+  function ptCaptions() {
+    if (!cc || ccDone || !player || !player.getOption) return;
+    try {
+      var list = player.getOption('captions', 'tracklist') || [];
+      var pt = null;
+      for (var i = 0; i < list.length; i++) if (/^pt/i.test(list[i].languageCode || '')) { pt = list[i]; break; }
+      // Sem faixa em português: pega a legenda original (ou a automática em inglês) e pede a tradução para português.
+      var base = list[0] ? list[0].languageCode : 'en';
+      player.setOption('captions', 'track', pt ? { languageCode: pt.languageCode }
+        : { languageCode: base, translationLanguage: { languageCode: 'pt', languageName: 'Português' } });
+      player.setOption('captions', 'fontSize', tv ? 2 : 1);
+      ccDone = true;
+      send({ ev: 'cc', pt: !!pt });
+    } catch (e) { /* vídeo sem legenda nenhuma */ }
+  }
   var player = null;
   var timer = null;
 
@@ -51,7 +71,15 @@
           e.target.playVideo();
           send({ ev: 'ready' });
         },
-        onStateChange: function (e) { send({ ev: 'state', s: e.data }); },
+        onStateChange: function (e) {
+          send({ ev: 'state', s: e.data });
+          if (e.data === 1 && cc && !ccDone) {
+            try { e.target.loadModule('captions'); } catch (x) { /* ignore */ }
+            setTimeout(ptCaptions, 600);
+            setTimeout(ptCaptions, 2000);
+          }
+        },
+        onApiChange: function () { ptCaptions(); },
         onError: function (e) { send({ ev: 'error', code: e.data }); },
       },
     });
