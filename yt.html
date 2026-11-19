@@ -70,6 +70,13 @@
           if (muted) e.target.mute(); else e.target.unMute();
           e.target.playVideo();
           send({ ev: 'ready' });
+          // Aparelho que não deixa começar com som: começa sem som e avisa o app (o botão mostra "sem som").
+          if (!muted) setTimeout(function () {
+            try {
+              var st = e.target.getPlayerState();
+              if (st !== 1 && st !== 3) { e.target.mute(); e.target.playVideo(); send({ ev: 'muted' }); }
+            } catch (x) { /* ignore */ }
+          }, 1800);
         },
         onStateChange: function (e) {
           send({ ev: 'state', s: e.data });
