@@ -23,6 +23,7 @@
   var bg = q.get('bg') === '1';
   var start = Number(q.get('start')) || 0;
   var muted = q.get('mute') !== '0';
+  var started = false;
   var ctl = bg ? 0 : (q.get('ctl') === '0' ? 0 : 1);
   var cc = !bg && q.get('cc') === '1';
   var tv = q.get('tv') === '1';
@@ -71,14 +72,16 @@
           e.target.playVideo();
           send({ ev: 'ready' });
           // Aparelho que não deixa começar com som: começa sem som e avisa o app (o botão mostra "sem som").
+          // (TV lenta demora para começar: espera bem mais antes de concluir que o som foi bloqueado.)
           if (!muted) setTimeout(function () {
             try {
               var st = e.target.getPlayerState();
-              if (st !== 1 && st !== 3) { e.target.mute(); e.target.playVideo(); send({ ev: 'muted' }); }
+              if (!started && (st === -1 || st === 5)) { e.target.mute(); e.target.playVideo(); send({ ev: 'muted' }); }
             } catch (x) { /* ignore */ }
-          }, 1800);
+          }, 6000);
         },
         onStateChange: function (e) {
+          if (e.data === 1 || e.data === 3) started = true;
           send({ ev: 'state', s: e.data });
           if (e.data === 1 && cc && !ccDone) {
             try { e.target.loadModule('captions'); } catch (x) { /* ignore */ }
