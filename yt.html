@@ -24,6 +24,8 @@
   var start = Number(q.get('start')) || 0;
   var muted = q.get('mute') !== '0';
   var started = false;
+  var autoMuted = false; // sem som só porque não começou a tempo (propaganda ou aparelho que bloqueou)
+  var triedSound = false;
   var ctl = bg ? 0 : (q.get('ctl') === '0' ? 0 : 1);
   var cc = !bg && q.get('cc') === '1';
   var tv = q.get('tv') === '1';
@@ -76,12 +78,24 @@
           if (!muted) setTimeout(function () {
             try {
               var st = e.target.getPlayerState();
-              if (!started && (st === -1 || st === 5)) { e.target.mute(); e.target.playVideo(); send({ ev: 'muted' }); }
+              if (!started && (st === -1 || st === 5)) { autoMuted = true; e.target.mute(); e.target.playVideo(); send({ ev: 'muted' }); }
             } catch (x) { /* ignore */ }
           }, 6000);
         },
         onStateChange: function (e) {
           if (e.data === 1 || e.data === 3) started = true;
+          // O trailer começou de verdade (a propaganda acabou): liga o som de volta. Se o aparelho pausar por
+          // causa do som, volta sem som e continua tocando.
+          if (e.data === 1 && autoMuted && !triedSound) {
+            triedSound = true;
+            try { e.target.unMute(); e.target.setVolume(100); } catch (x) { /* ignore */ }
+            setTimeout(function () {
+              try {
+                if (e.target.getPlayerState() === 1 && !e.target.isMuted()) { autoMuted = false; send({ ev: 'unmuted' }); }
+                else { e.target.mute(); e.target.playVideo(); }
+              } catch (x) { /* ignore */ }
+            }, 1200);
+          }
           send({ ev: 'state', s: e.data });
           if (e.data === 1 && cc && !ccDone) {
             try { e.target.loadModule('captions'); } catch (x) { /* ignore */ }
